@@ -9,7 +9,6 @@ public class JsonMartDbContext : DbContext
     public DbSet<OrderEntity> Orders { get; set; }
     public DbSet<OrderProduct> OrderProducts { get; set; }
     public DbSet<UserEntity> Users { get; set; }
-    public DbSet<StockEntity> Stocks { get; set; }
 
     public JsonMartDbContext(DbContextOptions<JsonMartDbContext> options) : base(options)
     {
@@ -37,10 +36,5 @@ public class JsonMartDbContext : DbContext
             .HasMany(u => u.Orders)
             .WithOne(o => o.User)
             .HasForeignKey(o => o.UserId);
-
-        modelBuilder.Entity<ProductEntity>()
-            .HasOne(p => p.Stock)
-            .WithOne(s => s.Product)
-            .HasForeignKey<StockEntity>(s => s.ProductId);
     }
 }
