@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace JsonMart.Migrations
 {
     [DbContext(typeof(JsonMartDbContext))]
-    [Migration("20240125112424_Initial")]
+    [Migration("20240126134615_Initial")]
     partial class Initial
     {
         /// <inheritdoc />
@@ -29,6 +29,7 @@ namespace JsonMart.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("CustomerName")
+                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<DateTime>("OrderDate")
@@ -65,20 +66,19 @@ namespace JsonMart.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    b.Property<string>("Description")
-                        .HasColumnType("longtext");
+                    b.Property<int>("AvailableQuantity")
+                        .HasColumnType("int");
 
-                    b.Property<bool?>("IsAvailable")
-                        .HasColumnType("tinyint(1)");
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Name")
+                        .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<decimal?>("Price")
+                    b.Property<decimal>("Price")
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("StockQuantity")
-                        .HasColumnType("int");
 
                     b.HasKey("Id");
 

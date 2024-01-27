@@ -21,11 +21,10 @@ namespace JsonMart.Migrations
                 {
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySQL:ValueGenerationStrategy", MySQLValueGenerationStrategy.IdentityColumn),
-                    Name = table.Column<string>(type: "longtext", nullable: true),
-                    Price = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    IsAvailable = table.Column<bool>(type: "tinyint(1)", nullable: true),
-                    Description = table.Column<string>(type: "longtext", nullable: true),
-                    StockQuantity = table.Column<int>(type: "int", nullable: false)
+                    Name = table.Column<string>(type: "longtext", nullable: false),
+                    Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    Description = table.Column<string>(type: "longtext", nullable: false),
+                    AvailableQuantity = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -54,7 +53,7 @@ namespace JsonMart.Migrations
                     Id = table.Column<int>(type: "int", nullable: false)
                         .Annotation("MySQL:ValueGenerationStrategy", MySQLValueGenerationStrategy.IdentityColumn),
                     OrderDate = table.Column<DateTime>(type: "datetime(6)", nullable: false),
-                    CustomerName = table.Column<string>(type: "longtext", nullable: true),
+                    CustomerName = table.Column<string>(type: "longtext", nullable: false),
                     UserId = table.Column<int>(type: "int", nullable: false)
                 },
                 constraints: table =>
