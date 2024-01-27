@@ -1,4 +1,4 @@
-using JsonMart.Dtos.Order;
+using JsonMart.Dtos;
 using JsonMart.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -59,7 +59,7 @@ public class OrdersControllerV1 : ControllerBase
             return BadRequest("Order creation failed: Unable to process the order.");
         }
         
-        if (createdOrderResponse.UnavailableProducts.Any())
+        if (!createdOrderResponse.IsOrderCreated)
         {
             return BadRequest(new 
             {
