@@ -1,5 +1,5 @@
 using JsonMart.Context;
-using JsonMart.Dtos.User;
+using JsonMart.Dtos;
 using JsonMart.Entities;
 using JsonMart.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -28,26 +28,21 @@ public class UserService : IUserService
             return null;
         }
 
-        return new UserDto()
-        {
-            Id = user.Id,
-            Name = user.Name,
-            Orders = user.Orders.ToList()
-        };
+        return new UserDto(user.Id, user.Name, user.Orders.ToList());
     }
 
     public async Task<UserCreateResponseDto?> CreateUserAsync(UserCreateDto userCreateDto, CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(userCreateDto.Name))
         {
-            return new UserCreateResponseDto { ErrorMessage = "User name cannot be empty." };
+            return new UserCreateResponseDto(ErrorMessage: "User name cannot be empty.");
         }
 
         var existingUser = await _dbContext.Users
             .AnyAsync(u => u.Name == userCreateDto.Name, token);
         if (existingUser)
         {
-            return new UserCreateResponseDto { ErrorMessage = "User name is already taken." };
+            return new UserCreateResponseDto(ErrorMessage: "User name is already taken.");
         }
 
         var newUser = new UserEntity
@@ -60,11 +55,7 @@ public class UserService : IUserService
             await _dbContext.Users.AddAsync(newUser, token);
             await _dbContext.SaveChangesAsync(token);
 
-            return new UserCreateResponseDto
-            {
-                Id = newUser.Id,
-                Name = newUser.Name
-            };
+            return new UserCreateResponseDto(newUser.Id, newUser.Name);
         }
         catch (Exception ex)
         {

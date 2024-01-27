@@ -1,4 +1,4 @@
-using JsonMart.Dtos.User;
+using JsonMart.Dtos;
 
 namespace JsonMart.Services.Interfaces;
 
