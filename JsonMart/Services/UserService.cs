@@ -1,6 +1,7 @@
 using JsonMart.Context;
 using JsonMart.Dtos;
 using JsonMart.Entities;
+using JsonMart.Extensions;
 using JsonMart.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,22 +32,8 @@ public class UserService : IUserService
             return null;
         }
 
-        var orderDtos = user.Orders.Select(o => new OrderDto
-        (
-            o.Id,
-            o.OrderDate,
-            o.CustomerName,
-            o.OrderProducts.Select(op => new OrderProductDto
-            (
-                op.ProductId,
-                op.Product.Name,
-                op.Product.Price,
-                op.Product.Description,
-                op.ProductQuantity
-            )).ToList(),
-            o.OrderProducts.Sum(op => op.Product.Price * op.ProductQuantity)
-        )).ToList();
-        return new UserDto(user.Id, user.Name, orderDtos);
+        var orderDtos = user.Orders.Select(o => o.ToDto()).ToList();
+        return new UserDto(user.Id, user.Name,user.Balance,  orderDtos);
     }
 
     public async Task<UserCreateResponseDto?> CreateUserAsync(UserCreateDto userCreateDto, CancellationToken token)
@@ -80,5 +67,31 @@ public class UserService : IUserService
             _logger.LogError(ex.Message, ex);
             return null;
         }
+    }
+
+    public async Task<bool> IncreaseBalanceAsync(int userId, decimal amount, CancellationToken token)
+    {
+        var user = await _dbContext.Users.FindAsync(userId, token);
+        if (user == null)
+        {
+            return false;
+        }
+
+        user.Balance += amount;
+        await _dbContext.SaveChangesAsync(token);
+        return true;
+    }
+
+    public async Task<bool> DecreaseBalanceAsync(int userId, decimal amount, CancellationToken token)
+    {
+        var user = await _dbContext.Users.FindAsync(userId, token);
+        if (user == null || user.Balance < amount)
+        {
+            return false;
+        }
+
+        user.Balance -= amount;
+        await _dbContext.SaveChangesAsync(token);
+        return true;
     }
 }

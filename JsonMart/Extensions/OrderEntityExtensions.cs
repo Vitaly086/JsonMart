@@ -18,6 +18,7 @@ public static class OrderEntityExtensions
                 op.Product.Description,
                 op.ProductQuantity
             )).ToList(),
+            orderEntity.Status,
             orderEntity.GetTotalOrderPrice()
         );
     }

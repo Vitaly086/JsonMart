@@ -52,5 +52,22 @@ namespace JsonMart.Controllers
 
             return CreatedAtAction(nameof(GetUserById), new { id = userResponse.Id }, userResponse);
         }
+        
+        [HttpPost("{id}/increase_balance")]
+        public async Task<ActionResult> IncreaseBalance(int id, [FromBody] decimal amount, CancellationToken token)
+        {
+            if (amount <= 0)
+            {
+                return BadRequest("Amount must be greater than zero.");
+            }
+
+            var result = await _userService.IncreaseBalanceAsync(id, amount, token);
+            if (!result)
+            {
+                return NotFound($"User with ID {id} not found.");
+            }
+
+            return Ok("Balance updated successfully.");
+        }
     }
 }

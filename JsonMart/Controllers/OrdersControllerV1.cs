@@ -87,4 +87,18 @@ public class OrdersControllerV1 : ControllerBase
             ? NoContent()
             : NotFound($"Order id {id} not found.");
     }
+    
+    
+    [HttpPost("{id}/pay")]
+    public async Task<ActionResult> PayOrder(int id, CancellationToken token)
+    {
+        var paymentResult = await _orderService.TryPayOrder(id, token);
+
+        if (!paymentResult.Success)
+        {
+            return BadRequest(paymentResult.Message);
+        }
+
+        return Ok("Order paid successfully.");
+    }
 }

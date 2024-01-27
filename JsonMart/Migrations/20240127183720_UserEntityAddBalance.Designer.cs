@@ -3,6 +3,7 @@ using System;
 using JsonMart.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace JsonMart.Migrations
 {
     [DbContext(typeof(JsonMartDbContext))]
-    partial class JsonMartDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240127183720_UserEntityAddBalance")]
+    partial class UserEntityAddBalance
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

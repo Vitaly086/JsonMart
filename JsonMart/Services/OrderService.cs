@@ -20,7 +20,31 @@ public class OrderService : IOrderService
         _userService = userService;
         _logger = logger;
     }
+    
+    public async Task<OperationResult> TryPayOrder(int orderId, CancellationToken token)
+    {
+        var order = await _dbContext.Orders
+            .Include(o => o.OrderProducts)
+            .ThenInclude(op => op.Product)
+            .FirstOrDefaultAsync(o => o.Id == orderId, token);
+        
+        if (order == null)
+        {
+            return new OperationResult(false, "Order not found.");
+        }
 
+        var orderTotal = order.GetTotalOrderPrice();
+        var deductionResult = await _userService.DecreaseBalanceAsync(order.UserId, orderTotal, token);
+
+        if (!deductionResult)
+        {
+            return new OperationResult(false, "Insufficient balance to pay for the order.");
+        }
+
+        order.Status = OrderStatus.Paid; 
+        await _dbContext.SaveChangesAsync(token);
+        return new OperationResult(true, "Order paid successfully.");
+    }
 
     public async Task<IEnumerable<OrderDto>?> GetAllOrdersAsync(CancellationToken token)
     {
@@ -90,6 +114,7 @@ public class OrderService : IOrderService
             OrderDate = DateTime.UtcNow,
             CustomerName = user.Name,
             UserId = user.Id,
+            Status = OrderStatus.Pending,
             OrderProducts = productQuantities
                 .Select(pq => new OrderProduct
                 {
@@ -120,6 +145,7 @@ public class OrderService : IOrderService
                 op.ProductQuantity
             )).ToList(),
             newOrder.GetTotalOrderPrice(),
+            newOrder.Status,
             new List<ProductAvailabilityInfoDto>()
         );
     }
