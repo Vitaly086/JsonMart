@@ -1,4 +1,5 @@
 using JsonMart.Context;
+using JsonMart.Middlewares;
 using JsonMart.Services;
 using JsonMart.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,7 @@ services.AddDbContext<JsonMartDbContext>(o => o.UseMySQL(connectionString));
 
 
 var app = builder.Build();
+app.UseCustomExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
