@@ -7,4 +7,5 @@ public class OrderProduct
 
     public int ProductId { get; set; }
     public virtual ProductEntity Product { get; set; }
+    public int ProductQuantity { get; set; }
 }

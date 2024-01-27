@@ -7,7 +7,7 @@ public class OrderEntity
     [Key]
     public int Id { get; set; }
     public DateTime OrderDate { get; set; }
-    public string? CustomerName { get; set; }
+    public string CustomerName { get; set; }
     
     public int UserId { get; set; }
     public virtual UserEntity User { get; set; }
