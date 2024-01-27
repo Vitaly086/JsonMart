@@ -20,8 +20,7 @@ public class ProductService : IProductService
     {
         var products = await _dbContext.Products
             .AsNoTracking()
-            .Select(product => new ProductDto(product.Id, product.Name, product.Price, product.Description,
-                product.AvailableQuantity))
+            .Select(p => MapProductDto(p))
             .ToListAsync(token);
 
         return products;
@@ -36,8 +35,7 @@ public class ProductService : IProductService
             return null;
         }
 
-        return new ProductDto(product.Id, product.Name, product.Price, product.Description,
-            product.AvailableQuantity);
+        return MapProductDto(product);
     }
 
 
@@ -60,7 +58,8 @@ public class ProductService : IProductService
             newProduct.Description);
     }
 
-    public async Task<ProductDto?> UpdateProductAsync(int id, ProductUpdateDto productUpdateDto, CancellationToken token)
+    public async Task<ProductDto?> UpdateProductAsync(int id, ProductUpdateDto productUpdateDto,
+        CancellationToken token)
     {
         var product = await _dbContext.Products.FindAsync(id, token);
 
@@ -73,9 +72,9 @@ public class ProductService : IProductService
         product.Description = productUpdateDto.Description ?? product.Description;
         product.AvailableQuantity = productUpdateDto.AvailableQuantity ?? product.AvailableQuantity;
         product.Price = productUpdateDto.Price ?? product.Price;
-        
+
         await _dbContext.SaveChangesAsync(token);
-        return new ProductDto(product.Id, product.Name, product.Price, product.Description, product.AvailableQuantity);
+        return MapProductDto(product);
     }
 
     public async Task<bool> TryDeleteProductAsync(int id, CancellationToken token)
@@ -101,5 +100,11 @@ public class ProductService : IProductService
             .ToListAsync(token);
 
         return availableProducts.Any() ? availableProducts : null;
+    }
+
+    private static ProductDto MapProductDto(ProductEntity product)
+    {
+        return new ProductDto(product.Id, product.Name, product.Price, product.Description,
+            product.AvailableQuantity);
     }
 }

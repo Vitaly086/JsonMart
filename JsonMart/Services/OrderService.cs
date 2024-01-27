@@ -1,7 +1,7 @@
 using JsonMart.Context;
-using JsonMart.Dtos.Order;
-using JsonMart.Dtos.Product;
+using JsonMart.Dtos;
 using JsonMart.Entities;
+using JsonMart.Extensions;
 using JsonMart.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,149 +30,101 @@ public class OrderService : IOrderService
             .ThenInclude(op => op.Product)
             .ToListAsync(token);
 
-        return orders.Select(ConvertToOrderDto);
+        return orders.Select(o => o.ToDto());
     }
 
 
     public async Task<OrderDto?> GetOrderAsync(int orderId, CancellationToken token)
     {
-        var orderEntity = await _dbContext.Orders
+        var order = await _dbContext.Orders
             .AsNoTracking()
             .Include(o => o.OrderProducts)
             .ThenInclude(op => op.Product)
             .FirstOrDefaultAsync(o => o.Id == orderId, token);
 
-        if (orderEntity == null)
+        if (order == null)
         {
             return null;
         }
 
-        var orderDto = ConvertToOrderDto(orderEntity);
-        return orderDto;
+        return order.ToDto();
     }
 
-    public async Task<OrderCreateResponseDto?> CreateOrderAsync(OrderCreateDto orderCreateDto, CancellationToken token)
+    public async Task<OrderCreateResponseDto> CreateOrderAsync(OrderCreateDto orderCreateDto, CancellationToken token)
     {
         var user = await _userService.GetUserByIdAsync(orderCreateDto.UserId, token);
         if (user == null)
         {
-            return null;
+            return new OrderCreateResponseDto(
+                new OperationResult(false, "User not found.")
+            );
         }
 
-        var productQuantities = orderCreateDto.ProductIds
-            .GroupBy(productId => productId)
-            .Select(group => (ProductId: group.Key, Quantity: group.Count()))
-            .ToList();
-
+        var productQuantities = GroupProductQuantities(orderCreateDto);
         var productIds = productQuantities.Select(pq => pq.ProductId).ToList();
-        var stocks = await _dbContext.Stocks
-            .Where(s => productIds.Contains(s.ProductId))
+
+        var products = await _dbContext.Products
+            .Where(p => productIds.Contains(p.Id))
             .ToListAsync(token);
 
-        var newOrderEntity = new OrderEntity()
+        var unavailableProducts = productQuantities
+            .Select(pq => new
+            {
+                pq.ProductId, pq.Quantity, Product = products.FirstOrDefault(p => p.Id == pq.ProductId)
+            })
+            .Where(pq => pq.Product == null || pq.Product.AvailableQuantity < pq.Quantity)
+            .Select(pq =>
+                new ProductAvailabilityInfoDto(pq.ProductId, pq.Product?.Name, pq.Product?.AvailableQuantity ?? 0))
+            .ToList();
+
+        if (unavailableProducts.Any())
+        {
+            return new OrderCreateResponseDto(
+                new OperationResult(false, "Some products are unavailable."),
+                UnavailableProducts: unavailableProducts
+            );
+        }
+
+        var newOrder = new OrderEntity
         {
             OrderDate = DateTime.UtcNow,
             CustomerName = user.Name,
-            UserId = orderCreateDto.UserId,
-            OrderProducts = new List<OrderProduct>()
+            UserId = user.Id,
+            OrderProducts = productQuantities
+                .Select(pq => new OrderProduct
+                {
+                    ProductId = pq.ProductId,
+                    ProductQuantity = pq.Quantity,
+                    Product = products.First(p => p.Id == pq.ProductId)
+                }).ToList()
         };
 
-        var unavailableProducts = new List<ProductAvailabilityInfoDto>();
-
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(token);
-        try
+        foreach (var orderProduct in newOrder.OrderProducts)
         {
-            foreach (var productQuantity in productQuantities)
-            {
-                var stock = stocks.FirstOrDefault(s => s.ProductId == productQuantity.ProductId);
-
-                if (stock == null || stock.AvailableQuantity < productQuantity.Quantity)
-                {
-                    unavailableProducts.Add(new ProductAvailabilityInfoDto
-                    {
-                        ProductId = productQuantity.ProductId,
-                        ProductName = stock?.Product.Name,
-                        AvailableQuantity = stock?.AvailableQuantity ?? 0
-                    });
-                    continue;
-                }
-
-                // Добавление продуктов в заказ
-                for (var i = 0; i < productQuantity.Quantity; i++)
-                {
-                    newOrderEntity.OrderProducts.Add(new OrderProduct()
-                    {
-                        Order = newOrderEntity,
-                        ProductId = productQuantity.ProductId,
-                    });
-                    stock.AvailableQuantity--;
-                }
-            }
-
-            if (!newOrderEntity.OrderProducts.Any())
-            {
-                return new OrderCreateResponseDto
-                {
-                    UnavailableProducts = unavailableProducts
-                };
-            }
-
-            await _dbContext.Orders.AddAsync(newOrderEntity, token);
-            await _dbContext.SaveChangesAsync(token);
-            await transaction.CommitAsync(token);
-
-            var totalPrice = newOrderEntity.OrderProducts.Sum(op => op.Product.Price);
-            var response = new OrderCreateResponseDto
-            {
-                Id = newOrderEntity.Id,
-                OrderDate = newOrderEntity.OrderDate,
-                CustomerName = newOrderEntity.CustomerName,
-                Products = newOrderEntity.OrderProducts.Select(op => new OrderProductDto
-                {
-                    Id = op.ProductId,
-                    Name = op.Product.Name,
-                    Price = op.Product.Price,
-                    Description = op.Product.Description,
-                }).ToList(),
-                TotalPrice = totalPrice ?? 0,
-                UnavailableProducts = unavailableProducts
-            };
-            return response;
+            orderProduct.Product.AvailableQuantity -= orderProduct.ProductQuantity;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, $"Error occurred while creating order for user ID {orderCreateDto.UserId}");
-            await transaction.RollbackAsync(token);
-            return null;
-        }
+
+        await _dbContext.Orders.AddAsync(newOrder, token);
+        await _dbContext.SaveChangesAsync(token);
+
+        return new OrderCreateResponseDto(
+            new OperationResult(true, "Order successfully created."),
+            newOrder.Id,
+            newOrder.OrderDate,
+            newOrder.CustomerName,
+            newOrder.OrderProducts.Select(op => new OrderProductDto(
+                op.ProductId,
+                op.Product.Name,
+                op.Product.Price,
+                op.Product.Description,
+                op.ProductQuantity
+            )).ToList(),
+            newOrder.GetTotalOrderPrice(),
+            new List<ProductAvailabilityInfoDto>()
+        );
     }
 
-    public async Task<bool> DeleteOrderAsync(int orderId, CancellationToken token)
-    {
-        var order = await _dbContext.Orders.FindAsync(orderId, token);
-
-        if (order == null)
-        {
-            return false;
-        }
-
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(token);
-        try
-        {
-            _dbContext.Orders.Remove(order);
-            await _dbContext.SaveChangesAsync(token);
-            await transaction.CommitAsync(token);
-            return true;
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, $"Error occurred while deleting order with ID {orderId}");
-            await transaction.RollbackAsync(token);
-            return false;
-        }
-    }
-
-    public async Task<bool> TryUpdateOrderAsync(int orderId, OrderUpdateDto orderUpdateDto, CancellationToken token)
+    public async Task<OrderDto?> UpdateOrderAsync(int orderId, OrderUpdateDto orderUpdateDto, CancellationToken token)
     {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(token);
         try
@@ -183,7 +135,7 @@ public class OrderService : IOrderService
 
             if (order == null)
             {
-                return false;
+                return null;
             }
 
             // Получаем ид продуктов для удаления
@@ -223,31 +175,45 @@ public class OrderService : IOrderService
 
             await _dbContext.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
-            return true;
+            return order.ToDto();
         }
+
         catch (Exception e)
         {
             _logger.LogError(e, $"Error occurred while updating order with ID {orderId}");
             await transaction.RollbackAsync(token);
-            return false;
+            throw;
         }
     }
 
-    private OrderDto ConvertToOrderDto(OrderEntity orderEntity)
+    public async Task<bool> DeleteOrderAsync(int orderId, CancellationToken token)
     {
-        return new OrderDto
+        var order = await _dbContext.Orders
+            .Include(o => o.OrderProducts)
+            .ThenInclude(op => op.Product)
+            .FirstOrDefaultAsync(o => o.Id == orderId, token);
+
+        if (order == null)
         {
-            Id = orderEntity.Id,
-            OrderDate = orderEntity.OrderDate,
-            CustomerName = orderEntity.CustomerName,
-            Products = orderEntity.OrderProducts.Select(op => new OrderProductDto
-            {
-                Id = op.ProductId,
-                Name = op.Product.Name,
-                Price = op.Product.Price,
-                Description = op.Product.Description,
-            }).ToList(),
-            TotalPrice = orderEntity.OrderProducts.Sum(op => op.Product.Price ?? 0)
-        };
+            return false;
+        }
+        
+        foreach (var orderProduct in order.OrderProducts)
+        {
+            orderProduct.Product.AvailableQuantity += orderProduct.ProductQuantity;
+        }
+
+        _dbContext.Orders.Remove(order);
+        await _dbContext.SaveChangesAsync(token);
+        return true;
+    }
+
+
+    private List<(int ProductId, int Quantity)> GroupProductQuantities(OrderCreateDto orderCreateDto)
+    {
+        return orderCreateDto.ProductIds
+            .GroupBy(productId => productId)
+            .Select(group => (ProductId: group.Key, Quantity: group.Count()))
+            .ToList();
     }
 }

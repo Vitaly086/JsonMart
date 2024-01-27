@@ -20,15 +20,33 @@ public class UserService : IUserService
     public async Task<UserDto?> GetUserByIdAsync(int userId, CancellationToken token)
     {
         var user = await _dbContext.Users
+            .AsNoTracking()
             .Include(u => u.Orders)
+            .ThenInclude(o => o.OrderProducts)
+            .ThenInclude(op => op.Product)
             .FirstOrDefaultAsync(u => u.Id == userId, token);
-        
+
         if (user == null)
         {
             return null;
         }
 
-        return new UserDto(user.Id, user.Name, user.Orders.ToList());
+        var orderDtos = user.Orders.Select(o => new OrderDto
+        (
+            o.Id,
+            o.OrderDate,
+            o.CustomerName,
+            o.OrderProducts.Select(op => new OrderProductDto
+            (
+                op.ProductId,
+                op.Product.Name,
+                op.Product.Price,
+                op.Product.Description,
+                op.ProductQuantity
+            )).ToList(),
+            o.OrderProducts.Sum(op => op.Product.Price * op.ProductQuantity)
+        )).ToList();
+        return new UserDto(user.Id, user.Name, orderDtos);
     }
 
     public async Task<UserCreateResponseDto?> CreateUserAsync(UserCreateDto userCreateDto, CancellationToken token)

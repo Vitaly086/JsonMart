@@ -5,7 +5,7 @@ public record OrderCreateDto(int UserId, List<int> ProductIds);
 public record OrderProductDto(int Id, string? Name, decimal? Price, string? Description, int Quantity);
 public record OrderUpdateDto(List<int> ProductIds);
 public record OrderCreateResponseDto(
-    bool IsOrderCreated,
+    OperationResult Result,
     int? Id = null, 
     DateTime? OrderDate = null, 
     string? CustomerName = null, 

@@ -54,16 +54,12 @@ public class OrdersControllerV1 : ControllerBase
 
         var createdOrderResponse = await _orderService.CreateOrderAsync(orderCreateDto, token);
 
-        if (createdOrderResponse == null)
+        if (!createdOrderResponse.Result.Success)
         {
-            return BadRequest("Order creation failed: Unable to process the order.");
-        }
-        
-        if (!createdOrderResponse.IsOrderCreated)
-        {
-            return BadRequest(new 
+            var message = createdOrderResponse.Result.Message ?? "Order creation failed: Unable to process the order.";
+            return BadRequest(new
             {
-                Message = "Order creation failed: Some products are not available in the requested quantity.",
+                Message = message, 
                 createdOrderResponse.UnavailableProducts
             });
         }
@@ -76,11 +72,9 @@ public class OrdersControllerV1 : ControllerBase
     public async Task<ActionResult<OrderDto>> UpdateOrderAsync([FromRoute] int id,
         [FromBody] OrderUpdateDto orderUpdateDto, CancellationToken token)
     {
-        var isUpdateSuccessful = await _orderService.TryUpdateOrderAsync(id, orderUpdateDto, token);
+        var updatedOrder = await _orderService.UpdateOrderAsync(id, orderUpdateDto, token);
 
-        return isUpdateSuccessful
-            ? CreatedAtAction("GetOrderById", new { id })
-            : BadRequest("Order update failed.");
+        return updatedOrder == null ? NotFound($"Order with ID {id} not found.") : Ok(orderUpdateDto);
     }
 
     [HttpDelete]
