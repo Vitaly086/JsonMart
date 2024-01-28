@@ -1,9 +1,7 @@
-using JsonMart.Entities;
-
 namespace JsonMart.Dtos;
 
-public record UserDto(int Id, string Name, decimal Balance, List<OrderDto> Orders);
+public record UserDto(int Id, string Name, decimal Balance, List<int>? OrderIds);
 
 public record UserCreateDto(string Name);
 
-public record UserCreateResponseDto(int? Id = null, string? Name = null, string? ErrorMessage = null);
+public record UserCreateResponseDto(int? Id = null, string? ErrorMessage = null);

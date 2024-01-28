@@ -16,7 +16,7 @@ namespace JsonMart.Controllers
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<UserDto>> GetUserById(int id, CancellationToken token)
+        public async Task<ActionResult<UserDto>> GetUserByIdAsync(int id, CancellationToken token)
         {
             var user = await _userService.GetUserByIdAsync(id, token);
 
@@ -26,6 +26,19 @@ namespace JsonMart.Controllers
             }
 
             return Ok(user);
+        }
+
+        [HttpGet]
+        public async Task<ActionResult<List<UserDto>>> GetAllUsersAsync(CancellationToken token)
+        {
+            var users = await _userService.GetAllUsersAsync(token);
+            
+            if (users == null || !users.Any())
+            {
+                return NotFound("Users not found.");
+            }
+
+            return Ok(users);
         }
 
         [HttpPost]
@@ -41,7 +54,7 @@ namespace JsonMart.Controllers
 
             if (userResponse == null)
             {
-                return  StatusCode(StatusCodes.Status500InternalServerError,
+                return StatusCode(StatusCodes.Status500InternalServerError,
                     "An error occurred while creating the user.");
             }
 
@@ -50,9 +63,9 @@ namespace JsonMart.Controllers
                 return BadRequest(userResponse.ErrorMessage);
             }
 
-            return CreatedAtAction(nameof(GetUserById), new { id = userResponse.Id }, userResponse);
+            return Ok(userResponse.Id);
         }
-        
+
         [HttpPost("{id}/increase_balance")]
         public async Task<ActionResult> IncreaseBalance(int id, [FromBody] decimal amount, CancellationToken token)
         {
@@ -61,7 +74,7 @@ namespace JsonMart.Controllers
                 return BadRequest("Amount must be greater than zero.");
             }
 
-            var result = await _userService.IncreaseBalanceAsync(id, amount, token);
+            var result = await _userService.TryIncreaseBalanceAsync(id, amount, token);
             if (!result)
             {
                 return NotFound($"User with ID {id} not found.");

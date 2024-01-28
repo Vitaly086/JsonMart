@@ -1,7 +1,6 @@
 using JsonMart.Context;
 using JsonMart.Dtos;
 using JsonMart.Entities;
-using JsonMart.Extensions;
 using JsonMart.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,20 +20,35 @@ public class UserService : IUserService
     public async Task<UserDto?> GetUserByIdAsync(int userId, CancellationToken token)
     {
         var user = await _dbContext.Users
-            .AsNoTracking()
+            .Where(u => u.Id == userId)
             .Include(u => u.Orders)
-            .ThenInclude(o => o.OrderProducts)
-            .ThenInclude(op => op.Product)
-            .FirstOrDefaultAsync(u => u.Id == userId, token);
+            .Select(u => new UserDto
+            (
+                u.Id,
+                u.Name,
+                u.Balance,
+                u.Orders.Select(o => o.Id).ToList()
+            ))
+            .FirstOrDefaultAsync(token);
 
-        if (user == null)
-        {
-            return null;
-        }
-
-        var orderDtos = user.Orders.Select(o => o.ToDto()).ToList();
-        return new UserDto(user.Id, user.Name,user.Balance,  orderDtos);
+        return user;
     }
+
+    public async Task<List<UserDto>?> GetAllUsersAsync(CancellationToken token)
+    {
+        var users = await _dbContext.Users
+            .Include(u => u.Orders)
+            .Select(u => new UserDto
+            (u.Id,
+                u.Name,
+                u.Balance,
+                u.Orders.Select(o => o.Id).ToList()
+            ))
+            .ToListAsync(token);
+        
+        return users;
+    }
+
 
     public async Task<UserCreateResponseDto?> CreateUserAsync(UserCreateDto userCreateDto, CancellationToken token)
     {
@@ -60,7 +74,7 @@ public class UserService : IUserService
             await _dbContext.Users.AddAsync(newUser, token);
             await _dbContext.SaveChangesAsync(token);
 
-            return new UserCreateResponseDto(newUser.Id, newUser.Name);
+            return new UserCreateResponseDto(newUser.Id);
         }
         catch (Exception ex)
         {
@@ -69,7 +83,7 @@ public class UserService : IUserService
         }
     }
 
-    public async Task<bool> IncreaseBalanceAsync(int userId, decimal amount, CancellationToken token)
+    public async Task<bool> TryIncreaseBalanceAsync(int userId, decimal amount, CancellationToken token)
     {
         var user = await _dbContext.Users.FindAsync(userId, token);
         if (user == null)
@@ -82,7 +96,7 @@ public class UserService : IUserService
         return true;
     }
 
-    public async Task<bool> DecreaseBalanceAsync(int userId, decimal amount, CancellationToken token)
+    public async Task<bool> TryDecreaseBalanceAsync(int userId, decimal amount, CancellationToken token)
     {
         var user = await _dbContext.Users.FindAsync(userId, token);
         if (user == null || user.Balance < amount)

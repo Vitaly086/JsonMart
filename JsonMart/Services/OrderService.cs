@@ -20,28 +20,28 @@ public class OrderService : IOrderService
         _userService = userService;
         _logger = logger;
     }
-    
+
     public async Task<OperationResult> TryPayOrder(int orderId, CancellationToken token)
     {
         var order = await _dbContext.Orders
             .Include(o => o.OrderProducts)
             .ThenInclude(op => op.Product)
             .FirstOrDefaultAsync(o => o.Id == orderId, token);
-        
+
         if (order == null)
         {
             return new OperationResult(false, "Order not found.");
         }
 
         var orderTotal = order.GetTotalOrderPrice();
-        var deductionResult = await _userService.DecreaseBalanceAsync(order.UserId, orderTotal, token);
+        var deductionResult = await _userService.TryDecreaseBalanceAsync(order.UserId, orderTotal, token);
 
         if (!deductionResult)
         {
             return new OperationResult(false, "Insufficient balance to pay for the order.");
         }
 
-        order.Status = OrderStatus.Paid; 
+        order.Status = OrderStatus.Paid;
         await _dbContext.SaveChangesAsync(token);
         return new OperationResult(true, "Order paid successfully.");
     }
@@ -223,7 +223,16 @@ public class OrderService : IOrderService
         {
             return false;
         }
-        
+
+        if (order.Status == OrderStatus.Paid)
+        {
+            var result = await RefundUserMoney(orderId, token, order);
+            if (!result)
+            {
+                return false;
+            }
+        }
+
         foreach (var orderProduct in order.OrderProducts)
         {
             orderProduct.Product.AvailableQuantity += orderProduct.ProductQuantity;
@@ -231,6 +240,26 @@ public class OrderService : IOrderService
 
         _dbContext.Orders.Remove(order);
         await _dbContext.SaveChangesAsync(token);
+        return true;
+    }
+
+    private async Task<bool> RefundUserMoney(int orderId, CancellationToken token, OrderEntity order)
+    {
+        var userId = await _dbContext.Orders
+            .Where(o => o.Id == orderId)
+            .Select(o => o.UserId)
+            .FirstAsync(token);
+
+        var totalPrice = order.OrderProducts.Sum(op => op.Product.Price * op.ProductQuantity);
+        var balanceIncreased = await _userService.TryIncreaseBalanceAsync(userId, totalPrice, token);
+
+        if (!balanceIncreased)
+        {
+            _logger.LogError(
+                $"Failed to increase balance for user with ID {userId} after deleting order with ID {orderId}.");
+            return false;
+        }
+
         return true;
     }
 
