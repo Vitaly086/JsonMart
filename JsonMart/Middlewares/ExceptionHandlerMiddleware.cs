@@ -31,21 +31,23 @@ public class ExceptionHandlerMiddleware
         catch (Exception ex)
         {
             _logger.LogError(ex, ex.Message);
-            await HandleExceptionMessageAsync(context, ex);
+            await HandleExceptionMessageAsync(context);
         }
     }
 
-    private static Task HandleExceptionMessageAsync(HttpContext context, Exception exception)
+    private static Task HandleExceptionMessageAsync(HttpContext context)
     {
         var statusCode = (int)HttpStatusCode.InternalServerError;
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = statusCode;
+        
+        var errorMessage = "An error occurred while processing your request.";
 
         var result = JsonSerializer.Serialize(
             new
             {
                 StatusCode = statusCode,
-                ErrorMessage = exception.Message
+                ErrorMessage = errorMessage
             });
         return context.Response.WriteAsync(result);
     }

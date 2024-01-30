@@ -23,10 +23,7 @@ public class OrderService : IOrderService
 
     public async Task<OperationResult> TryPayOrder(int orderId, CancellationToken token)
     {
-        var order = await _dbContext.Orders
-            .Include(o => o.OrderProducts)
-            .ThenInclude(op => op.Product)
-            .FirstOrDefaultAsync(o => o.Id == orderId, token);
+        var order = await FindOrderWithProductAsync(orderId, token);
 
         if (order == null)
         {
@@ -57,21 +54,10 @@ public class OrderService : IOrderService
         return orders.Select(o => o.ToDto());
     }
 
-
     public async Task<OrderDto?> GetOrderAsync(int orderId, CancellationToken token)
     {
-        var order = await _dbContext.Orders
-            .AsNoTracking()
-            .Include(o => o.OrderProducts)
-            .ThenInclude(op => op.Product)
-            .FirstOrDefaultAsync(o => o.Id == orderId, token);
-
-        if (order == null)
-        {
-            return null;
-        }
-
-        return order.ToDto();
+        var order = await FindOrderWithProductAsync(orderId, token, true);
+        return order?.ToDto();
     }
 
     public async Task<OrderCreateResponseDto> CreateOrderAsync(OrderCreateDto orderCreateDto, CancellationToken token)
@@ -79,9 +65,7 @@ public class OrderService : IOrderService
         var user = await _userService.GetUserByIdAsync(orderCreateDto.UserId, token);
         if (user == null)
         {
-            return new OrderCreateResponseDto(
-                new OperationResult(false, "User not found.")
-            );
+            return CreateOrderCreationErrorResponse("User not found.");
         }
 
         var productQuantities = GroupProductQuantities(orderCreateDto);
@@ -91,66 +75,22 @@ public class OrderService : IOrderService
             .Where(p => productIds.Contains(p.Id))
             .ToListAsync(token);
 
-        var unavailableProducts = productQuantities
-            .Select(pq => new
-            {
-                pq.ProductId, pq.Quantity, Product = products.FirstOrDefault(p => p.Id == pq.ProductId)
-            })
-            .Where(pq => pq.Product == null || pq.Product.AvailableQuantity < pq.Quantity)
-            .Select(pq =>
-                new ProductAvailabilityInfoDto(pq.ProductId, pq.Product?.Name, pq.Product?.AvailableQuantity ?? 0))
-            .ToList();
+        var unavailableProducts = GetUnavailableProducts(productQuantities, products);
 
         if (unavailableProducts.Any())
         {
-            return new OrderCreateResponseDto(
-                new OperationResult(false, "Some products are unavailable."),
-                UnavailableProducts: unavailableProducts
-            );
+            return CreateOrderCreationErrorResponse("Some products are unavailable.", unavailableProducts);
         }
 
-        var newOrder = new OrderEntity
-        {
-            OrderDate = DateTime.UtcNow,
-            CustomerName = user.Name,
-            UserId = user.Id,
-            Status = OrderStatus.Pending,
-            OrderProducts = productQuantities
-                .Select(pq => new OrderProduct
-                {
-                    ProductId = pq.ProductId,
-                    ProductQuantity = pq.Quantity,
-                    Product = products.First(p => p.Id == pq.ProductId)
-                }).ToList()
-        };
-
-        foreach (var orderProduct in newOrder.OrderProducts)
-        {
-            orderProduct.Product.AvailableQuantity -= orderProduct.ProductQuantity;
-        }
-
+        var newOrder = CreateNewOrder(user, productQuantities, products);
         await _dbContext.Orders.AddAsync(newOrder, token);
         await _dbContext.SaveChangesAsync(token);
 
-        return new OrderCreateResponseDto(
-            new OperationResult(true, "Order successfully created."),
-            newOrder.Id,
-            newOrder.OrderDate,
-            newOrder.CustomerName,
-            newOrder.OrderProducts.Select(op => new OrderProductDto(
-                op.ProductId,
-                op.Product.Name,
-                op.Product.Price,
-                op.Product.Description,
-                op.ProductQuantity
-            )).ToList(),
-            newOrder.GetTotalOrderPrice(),
-            newOrder.Status,
-            new List<ProductAvailabilityInfoDto>()
-        );
+        return newOrder.ToCreateResponseDto(new OperationResult(true, "Order successfully created."));
     }
 
-    public async Task<OrderDto?> UpdateOrderAsync(int orderId, OrderUpdateDto orderUpdateDto, CancellationToken token)
+    public async Task<OrderUpdateResponseDto?> UpdateOrderAsync(int orderId, OrderUpdateDto orderUpdateDto,
+        CancellationToken token)
     {
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(token);
         try
@@ -164,44 +104,22 @@ public class OrderService : IOrderService
                 return null;
             }
 
-            // Получаем ид продуктов для удаления
-            var productIdsToRemove = order.OrderProducts
-                .Select(op => op.ProductId)
-                .Except(orderUpdateDto.ProductIds)
-                .ToList();
-
-            // Удаление продуктов, которых нет в новом списке
-            foreach (var productId in productIdsToRemove)
+            var missingProductIds = await GetMissingProductIdsAsync(orderUpdateDto.ProductIds, token);
+            if (missingProductIds.Any())
             {
-                var productToRemove = order.OrderProducts.FirstOrDefault(op => op.ProductId == productId);
-                if (productToRemove != null)
-                {
-                    order.OrderProducts.Remove(productToRemove);
-                }
+                var missingIdsString = String.Join(", ", missingProductIds);
+                return new OrderUpdateResponseDto(
+                    new OperationResult(false, $"Product IDs not found: {missingIdsString}"), null);
             }
 
-            // Получаем ид новых продуктов для добавления
-            var newProductIds = orderUpdateDto.ProductIds
-                .Except(order.OrderProducts.Select(op => op.ProductId))
-                .ToList();
-
-            // Проверяем наличие этих продуктов в базе данных
-            var productsToAdd = await _dbContext.Products
-                .Where(p => newProductIds.Contains(p.Id))
-                .ToListAsync(token);
-
-            // Добавление новых продуктов
-            foreach (var product in productsToAdd)
-            {
-                order.OrderProducts.Add(new OrderProduct
-                {
-                    OrderId = orderId, ProductId = product.Id
-                });
-            }
+            RemoveProductsFromOrder(order, orderUpdateDto, token);
+            await AddNewProductsToOrder(order, orderUpdateDto, token);
 
             await _dbContext.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
-            return order.ToDto();
+
+            var operationResult = new OperationResult(true, "Order updated successfully.");
+            return order.ToUpdateResponseDto(operationResult);
         }
 
         catch (Exception e)
@@ -214,10 +132,7 @@ public class OrderService : IOrderService
 
     public async Task<bool> DeleteOrderAsync(int orderId, CancellationToken token)
     {
-        var order = await _dbContext.Orders
-            .Include(o => o.OrderProducts)
-            .ThenInclude(op => op.Product)
-            .FirstOrDefaultAsync(o => o.Id == orderId, token);
+        var order = await FindOrderWithProductAsync(orderId, token);
 
         if (order == null)
         {
@@ -243,7 +158,7 @@ public class OrderService : IOrderService
         return true;
     }
 
-    private async Task<bool> RefundUserMoney(int orderId, CancellationToken token, OrderEntity order)
+    private async Task<bool> RefundUserMoney(int orderId, CancellationToken token, Order order)
     {
         var userId = await _dbContext.Orders
             .Where(o => o.Id == orderId)
@@ -262,13 +177,119 @@ public class OrderService : IOrderService
 
         return true;
     }
-
-
+    
     private List<(int ProductId, int Quantity)> GroupProductQuantities(OrderCreateDto orderCreateDto)
     {
         return orderCreateDto.ProductIds
             .GroupBy(productId => productId)
             .Select(group => (ProductId: group.Key, Quantity: group.Count()))
             .ToList();
+    }
+
+    private void RemoveProductsFromOrder(Order order, OrderUpdateDto orderUpdateDto, CancellationToken token)
+    {
+        var productIdsToRemove = order.OrderProducts
+            .Select(op => op.ProductId)
+            .Except(orderUpdateDto.ProductIds)
+            .ToList();
+
+        foreach (var productId in productIdsToRemove)
+        {
+            var productToRemove = order.OrderProducts.FirstOrDefault(op => op.ProductId == productId);
+            if (productToRemove != null)
+            {
+                order.OrderProducts.Remove(productToRemove);
+            }
+        }
+    }
+
+    private async Task AddNewProductsToOrder(Order order, OrderUpdateDto orderUpdateDto, CancellationToken token)
+    {
+        var newProductIds = orderUpdateDto.ProductIds
+            .Except(order.OrderProducts.Select(op => op.ProductId))
+            .ToList();
+
+        var productsToAdd = await _dbContext.Products
+            .Where(p => newProductIds.Contains(p.Id))
+            .ToListAsync(token);
+
+        foreach (var product in productsToAdd)
+        {
+            order.OrderProducts.Add(new OrderProduct { OrderId = order.Id, ProductId = product.Id });
+        }
+    }
+
+    private List<ProductAvailabilityInfoDto> GetUnavailableProducts(
+        List<(int ProductId, int Quantity)> productQuantities, List<Product> products)
+    {
+        return productQuantities
+            .Select(pq => new
+            {
+                pq.ProductId, pq.Quantity, Product = products.FirstOrDefault(p => p.Id == pq.ProductId)
+            })
+            .Where(pq => pq.Product == null || pq.Product.AvailableQuantity < pq.Quantity)
+            .Select(pq =>
+                new ProductAvailabilityInfoDto(pq.ProductId, pq.Product?.Name, pq.Product?.AvailableQuantity ?? 0))
+            .ToList();
+    }
+
+    private OrderCreateResponseDto CreateOrderCreationErrorResponse(string message,
+        List<ProductAvailabilityInfoDto> unavailableProducts = null)
+    {
+        return new OrderCreateResponseDto(new OperationResult(false, message),
+            UnavailableProducts: unavailableProducts);
+    }
+
+    private Order CreateNewOrder(UserDto user, List<(int ProductId, int Quantity)> productQuantities,
+        List<Product> products)
+    {
+        var newOrder = new Order
+        {
+            OrderDate = DateTime.UtcNow,
+            UserId = user.Id,
+            Status = OrderStatus.Pending,
+            OrderProducts = productQuantities
+                .Select(pq => new OrderProduct
+                {
+                    ProductId = pq.ProductId,
+                    ProductQuantity = pq.Quantity,
+                    Product = products.First(p => p.Id == pq.ProductId)
+                }).ToList()
+        };
+
+        foreach (var orderProduct in newOrder.OrderProducts)
+        {
+            orderProduct.Product.AvailableQuantity -= orderProduct.ProductQuantity;
+        }
+
+        return newOrder;
+    }
+
+    private async Task<Order?> FindOrderWithProductAsync(int orderId, CancellationToken token,
+        bool includeAsNoTracking = false)
+    {
+        var query = _dbContext.Orders.AsQueryable();
+
+        if (includeAsNoTracking)
+        {
+            query.AsNoTracking();
+        }
+
+        var order = await query
+            .Include(o => o.OrderProducts)
+            .ThenInclude(op => op.Product)
+            .FirstOrDefaultAsync(o => o.Id == orderId, token);
+
+        return order;
+    }
+
+    private async Task<List<int>> GetMissingProductIdsAsync(List<int> productIds, CancellationToken token)
+    {
+        var existingProductIds = await _dbContext.Products
+            .Where(p => productIds.Contains(p.Id))
+            .Select(p => p.Id)
+            .ToListAsync(token);
+
+        return productIds.Except(existingProductIds).ToList();
     }
 }

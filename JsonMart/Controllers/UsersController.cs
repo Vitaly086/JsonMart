@@ -6,11 +6,11 @@ namespace JsonMart.Controllers
 {
     [ApiController]
     [Route("api/v1/users")]
-    public class UsersControllerV1 : ControllerBase
+    public class UsersController : ControllerBase
     {
         private readonly IUserService _userService;
 
-        public UsersControllerV1(IUserService userService)
+        public UsersController(IUserService userService)
         {
             _userService = userService;
         }
@@ -49,6 +49,11 @@ namespace JsonMart.Controllers
             {
                 return BadRequest("User data is required.");
             }
+            
+            if (string.IsNullOrWhiteSpace(userCreateDto.Name))
+            {
+                return BadRequest("User name cannot be empty.");
+            }
 
             var userResponse = await _userService.CreateUserAsync(userCreateDto, token);
 
@@ -64,23 +69,6 @@ namespace JsonMart.Controllers
             }
 
             return Ok(userResponse.Id);
-        }
-
-        [HttpPost("{id}/increase_balance")]
-        public async Task<ActionResult> IncreaseBalance(int id, [FromBody] decimal amount, CancellationToken token)
-        {
-            if (amount <= 0)
-            {
-                return BadRequest("Amount must be greater than zero.");
-            }
-
-            var result = await _userService.TryIncreaseBalanceAsync(id, amount, token);
-            if (!result)
-            {
-                return NotFound($"User with ID {id} not found.");
-            }
-
-            return Ok("Balance updated successfully.");
         }
     }
 }

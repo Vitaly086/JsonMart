@@ -6,11 +6,11 @@ namespace JsonMart.Controllers;
 
 [ApiController]
 [Route("api/v1/products")]
-public class ProductsControllerV1 : ControllerBase
+public class ProductsController : ControllerBase
 {
     private readonly IProductService _productService;
 
-    public ProductsControllerV1(IProductService productService)
+    public ProductsController(IProductService productService)
     {
         _productService = productService;
     }

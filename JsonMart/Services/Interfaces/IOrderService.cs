@@ -9,5 +9,5 @@ public interface IOrderService
     Task<OrderDto?> GetOrderAsync(int orderId, CancellationToken token);
     Task<OrderCreateResponseDto> CreateOrderAsync(OrderCreateDto orderCreateDto, CancellationToken token);
     Task<bool> DeleteOrderAsync(int orderId, CancellationToken token);
-    Task<OrderDto?> UpdateOrderAsync(int orderId, OrderUpdateDto orderUpdateDto, CancellationToken token);
+    Task<OrderUpdateResponseDto?> UpdateOrderAsync(int orderId, OrderUpdateDto orderUpdateDto, CancellationToken token);
 }

@@ -6,12 +6,12 @@ namespace JsonMart.Controllers;
 
 [ApiController]
 [Route("api/v1/orders")]
-public class OrdersControllerV1 : ControllerBase
+public class OrdersController : ControllerBase
 {
     private readonly IOrderService _orderService;
 
 
-    public OrdersControllerV1(IOrderService orderService)
+    public OrdersController(IOrderService orderService)
     {
         _orderService = orderService;
     }
@@ -69,12 +69,22 @@ public class OrdersControllerV1 : ControllerBase
 
     [HttpPatch]
     [Route("{id}")]
-    public async Task<ActionResult<OrderDto>> UpdateOrderAsync([FromRoute] int id,
+    public async Task<ActionResult<OrderUpdateResponseDto>> UpdateOrderAsync([FromRoute] int id,
         [FromBody] OrderUpdateDto orderUpdateDto, CancellationToken token)
     {
-        var updatedOrder = await _orderService.UpdateOrderAsync(id, orderUpdateDto, token);
+        var updateResponse = await _orderService.UpdateOrderAsync(id, orderUpdateDto, token);
 
-        return updatedOrder == null ? NotFound($"Order with ID {id} not found.") : Ok(orderUpdateDto);
+        if (updateResponse == null)
+        {
+            return NotFound($"Order with ID {id} not found.");
+        }
+
+        if (!updateResponse.Result.Success)
+        {
+            return BadRequest(updateResponse.Result.Message);
+        }
+
+        return Ok(updateResponse);
     }
 
     [HttpDelete]

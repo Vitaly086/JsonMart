@@ -52,11 +52,6 @@ public class UserService : IUserService
 
     public async Task<UserCreateResponseDto?> CreateUserAsync(UserCreateDto userCreateDto, CancellationToken token)
     {
-        if (string.IsNullOrWhiteSpace(userCreateDto.Name))
-        {
-            return new UserCreateResponseDto(ErrorMessage: "User name cannot be empty.");
-        }
-
         var existingUser = await _dbContext.Users
             .AnyAsync(u => u.Name == userCreateDto.Name, token);
         if (existingUser)
@@ -64,7 +59,7 @@ public class UserService : IUserService
             return new UserCreateResponseDto(ErrorMessage: "User name is already taken.");
         }
 
-        var newUser = new UserEntity
+        var newUser = new User
         {
             Name = userCreateDto.Name
         };

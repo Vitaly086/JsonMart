@@ -42,7 +42,7 @@ public class ProductService : IProductService
     public async Task<ProductCreateResponseDto?> CreateProductAsync(ProductCreateDto productCreateDto,
         CancellationToken token)
     {
-        var newProduct = new ProductEntity
+        var newProduct = new Product
         {
             Name = productCreateDto.Name,
             Price = productCreateDto.Price,
@@ -102,7 +102,7 @@ public class ProductService : IProductService
         return availableProducts.Any() ? availableProducts : null;
     }
 
-    private static ProductDto MapProductDto(ProductEntity product)
+    private static ProductDto MapProductDto(Product product)
     {
         return new ProductDto(product.Id, product.Name, product.Price, product.Description,
             product.AvailableQuantity);
