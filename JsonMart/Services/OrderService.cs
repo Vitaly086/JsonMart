@@ -21,13 +21,18 @@ public class OrderService : IOrderService
         _logger = logger;
     }
 
-    public async Task<OperationResult> TryPayOrder(int orderId, CancellationToken token)
+    public async Task<OperationResult> TryPayOrder(int userId, int orderId, CancellationToken token)
     {
         var order = await FindOrderWithProductAsync(orderId, token);
 
         if (order == null)
         {
             return new OperationResult(false, "Order not found.");
+        }
+
+        if (order.UserId != userId)
+        {
+            return new OperationResult(false, "Access denied: You do not have permission to modify this order.");
         }
 
         var orderTotal = order.GetTotalOrderPrice();

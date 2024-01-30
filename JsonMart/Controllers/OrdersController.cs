@@ -100,9 +100,9 @@ public class OrdersController : ControllerBase
     
     
     [HttpPost("{id}/pay")]
-    public async Task<ActionResult> PayOrder(int id, CancellationToken token)
+    public async Task<ActionResult> PayOrder(int userId, int id, CancellationToken token)
     {
-        var paymentResult = await _orderService.TryPayOrder(id, token);
+        var paymentResult = await _orderService.TryPayOrder(userId, id, token);
 
         if (!paymentResult.Success)
         {
