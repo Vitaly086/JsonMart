@@ -30,9 +30,10 @@ public class OrderService : IOrderService
             return new OperationResult(false, "Order not found.");
         }
 
-        if (order.UserId != userId)
+        var validationError = ValidateOrder(userId, order);
+        if (validationError != null)
         {
-            return new OperationResult(false, "Access denied: You do not have permission to modify this order.");
+            return validationError;
         }
 
         var orderTotal = order.GetTotalOrderPrice();
@@ -182,7 +183,7 @@ public class OrderService : IOrderService
 
         return true;
     }
-    
+
     private List<(int ProductId, int Quantity)> GroupProductQuantities(OrderCreateDto orderCreateDto)
     {
         return orderCreateDto.ProductIds
@@ -296,5 +297,20 @@ public class OrderService : IOrderService
             .ToListAsync(token);
 
         return productIds.Except(existingProductIds).ToList();
+    }
+
+    private OperationResult? ValidateOrder(int userId, Order order)
+    {
+        if (order.Status == OrderStatus.Paid)
+        {
+            return new OperationResult(false, "The order has already been paid for.");
+        }
+
+        if (order.UserId != userId)
+        {
+            return new OperationResult(false, "Access denied: You do not have permission to modify this order.");
+        }
+
+        return null;
     }
 }
