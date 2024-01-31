@@ -104,7 +104,7 @@ public class OrdersController : ControllerBase
     [HttpPost("{id}/pay/{userId}")]
     public async Task<ActionResult> PayOrder(int userId, int id, CancellationToken token)
     {
-        var paymentResult = await _orderService.TryPayOrder(userId, id, token);
+        var paymentResult = await _orderService.TryPayOrderAsync(userId, id, token);
 
         if (!paymentResult.Success)
         {
@@ -112,5 +112,18 @@ public class OrdersController : ControllerBase
         }
 
         return Ok("Order paid successfully.");
+    }
+    
+    [HttpGet("user/{userId}")]
+    public async Task<ActionResult<IEnumerable<OrderDto>>> GetOrdersByUserIdAsync([FromRoute] int userId, CancellationToken token)
+    {
+        var orders = await _orderService.GetOrdersByUserIdAsync(userId, token);
+
+        if (!orders.Any())
+        {
+            return NotFound($"No orders found for user ID {userId}.");
+        }
+
+        return Ok(orders);
     }
 }

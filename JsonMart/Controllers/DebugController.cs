@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace JsonMart.Controllers;
 
 [ApiController]
-[Route("api/v1/debug")]
+[Route("api/debug")]
 public class DebugController : ControllerBase
 {
     private readonly IUserService _userService;

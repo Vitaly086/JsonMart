@@ -37,7 +37,7 @@ public class UnpaidOrdersCleanupService : BackgroundService
         var orderService = scope.ServiceProvider.GetRequiredService<IOrderService>();
 
         var cutoffTime = DateTime.UtcNow - _orderLifetime;
-        var orderIdsToDelete = await orderService.GetUnpaidOrdersOlderThan(cutoffTime);
+        var orderIdsToDelete = await orderService.GetUnpaidOrdersOlderThanAsync(cutoffTime);
 
         foreach (var orderId in orderIdsToDelete)
         {

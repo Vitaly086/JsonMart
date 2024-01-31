@@ -1,4 +1,3 @@
-using System.Collections;
 using JsonMart.Context;
 using JsonMart.Dtos;
 using JsonMart.Entities;
@@ -22,7 +21,7 @@ public class OrderService : IOrderService
         _logger = logger;
     }
 
-    public async Task<OperationResult> TryPayOrder(int userId, int orderId, CancellationToken token)
+    public async Task<OperationResult> TryPayOrderAsync(int userId, int orderId, CancellationToken token)
     {
         var order = await FindOrderWithProductAsync(orderId, token);
 
@@ -137,12 +136,25 @@ public class OrderService : IOrderService
         }
     }
 
-    public async Task<List<int>> GetUnpaidOrdersOlderThan(DateTime cutoffTime)
+    public async Task<List<int>> GetUnpaidOrdersOlderThanAsync(DateTime cutoffTime)
     {
         return await _dbContext.Orders
             .Where(o => o.Status == OrderStatus.Pending && o.OrderDate <= cutoffTime)
             .Select(o => o.Id)
             .ToListAsync();
+    }
+
+    public async Task<IEnumerable<OrderDto>> GetOrdersByUserIdAsync(int userId, CancellationToken token)
+    {
+        var orders = await _dbContext.Orders
+            .AsNoTracking()
+            .Where(o => o.UserId == userId)
+            .Include(o => o.OrderProducts)
+            .ThenInclude(op => op.Product)
+            .Select(o => o.ToDto())
+            .ToListAsync(token);
+
+        return orders;
     }
 
     public async Task<bool> DeleteOrderAsync(int orderId, CancellationToken token)
