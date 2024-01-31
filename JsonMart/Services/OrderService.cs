@@ -1,3 +1,4 @@
+using System.Collections;
 using JsonMart.Context;
 using JsonMart.Dtos;
 using JsonMart.Entities;
@@ -134,6 +135,14 @@ public class OrderService : IOrderService
             await transaction.RollbackAsync(token);
             throw;
         }
+    }
+
+    public async Task<List<int>> GetUnpaidOrdersOlderThan(DateTime cutoffTime)
+    {
+        return await _dbContext.Orders
+            .Where(o => o.Status == OrderStatus.Pending && o.OrderDate <= cutoffTime)
+            .Select(o => o.Id)
+            .ToListAsync();
     }
 
     public async Task<bool> DeleteOrderAsync(int orderId, CancellationToken token)

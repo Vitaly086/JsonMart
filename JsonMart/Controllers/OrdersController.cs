@@ -1,6 +1,7 @@
 using JsonMart.Dtos;
 using JsonMart.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace JsonMart.Controllers;
 
@@ -42,8 +43,9 @@ public class OrdersController : ControllerBase
 
         return Ok(order);
     }
-
+    
     [HttpPost]
+    [SwaggerOperation(Description = "Unpaid orders are automatically deleted after 20 minutes.")]
     public async Task<ActionResult<OrderCreateResponseDto>> CreateOrderAsync([FromBody] OrderCreateDto? orderCreateDto,
         CancellationToken token)
     {

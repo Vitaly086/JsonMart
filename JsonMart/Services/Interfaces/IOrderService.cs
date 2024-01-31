@@ -1,3 +1,4 @@
+using System.Collections;
 using JsonMart.Dtos;
 
 namespace JsonMart.Services.Interfaces;
@@ -10,4 +11,5 @@ public interface IOrderService
     Task<OrderCreateResponseDto> CreateOrderAsync(OrderCreateDto orderCreateDto, CancellationToken token);
     Task<bool> DeleteOrderAsync(int orderId, CancellationToken token);
     Task<OrderUpdateResponseDto?> UpdateOrderAsync(int orderId, OrderUpdateDto orderUpdateDto, CancellationToken token);
+    Task<List<int>> GetUnpaidOrdersOlderThan(DateTime cutoffTime);
 }
