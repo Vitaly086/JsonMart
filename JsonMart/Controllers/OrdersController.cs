@@ -43,7 +43,7 @@ public class OrdersController : ControllerBase
 
         return Ok(order);
     }
-    
+
     [HttpPost]
     [SwaggerOperation(Description = "Unpaid orders are automatically deleted after 20 minutes.")]
     public async Task<ActionResult<OrderCreateResponseDto>> CreateOrderAsync([FromBody] OrderCreateDto? orderCreateDto,
@@ -61,7 +61,7 @@ public class OrdersController : ControllerBase
             var message = createdOrderResponse.Result.Message ?? "Order creation failed: Unable to process the order.";
             return BadRequest(new
             {
-                Message = message, 
+                Message = message,
                 createdOrderResponse.UnavailableProducts
             });
         }
@@ -99,12 +99,12 @@ public class OrdersController : ControllerBase
             ? NoContent()
             : NotFound($"Order id {id} not found.");
     }
-    
-    
-    [HttpPost("{id}/pay/{userId}")]
-    public async Task<ActionResult> PayOrder(int userId, int id, CancellationToken token)
+
+
+    [HttpPost("{id}/pay")]
+    public async Task<ActionResult> PayOrder(int id, CancellationToken token)
     {
-        var paymentResult = await _orderService.TryPayOrderAsync(userId, id, token);
+        var paymentResult = await _orderService.TryPayOrderAsync(id, token);
 
         if (!paymentResult.Success)
         {
@@ -113,9 +113,10 @@ public class OrdersController : ControllerBase
 
         return Ok("Order paid successfully.");
     }
-    
+
     [HttpGet("user/{userId}")]
-    public async Task<ActionResult<IEnumerable<OrderDto>>> GetOrdersByUserIdAsync([FromRoute] int userId, CancellationToken token)
+    public async Task<ActionResult<IEnumerable<OrderDto>>> GetOrdersByUserIdAsync([FromRoute] int userId,
+        CancellationToken token)
     {
         var orders = await _orderService.GetOrdersByUserIdAsync(userId, token);
 

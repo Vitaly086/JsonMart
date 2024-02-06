@@ -4,7 +4,7 @@ namespace JsonMart.Services.Interfaces;
 
 public interface IOrderService
 {
-    Task<OperationResult> TryPayOrderAsync(int userId, int orderId, CancellationToken token);
+    Task<OperationResult> TryPayOrderAsync(int orderId, CancellationToken token);
     Task<IEnumerable<OrderDto>?> GetAllOrdersAsync(CancellationToken token);
     Task<OrderDto?> GetOrderAsync(int orderId, CancellationToken token);
     Task<OrderCreateResponseDto> CreateOrderAsync(OrderCreateDto orderCreateDto, CancellationToken token);

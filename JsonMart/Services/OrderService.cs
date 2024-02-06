@@ -21,7 +21,7 @@ public class OrderService : IOrderService
         _logger = logger;
     }
 
-    public async Task<OperationResult> TryPayOrderAsync(int userId, int orderId, CancellationToken token)
+    public async Task<OperationResult> TryPayOrderAsync(int orderId, CancellationToken token)
     {
         var order = await FindOrderWithProductAsync(orderId, token);
 
@@ -30,7 +30,7 @@ public class OrderService : IOrderService
             return new OperationResult(false, "Order not found.");
         }
 
-        var validationError = ValidateOrder(userId, order);
+        var validationError = ValidateOrder(order);
         if (validationError != null)
         {
             return validationError;
@@ -320,18 +320,12 @@ public class OrderService : IOrderService
         return productIds.Except(existingProductIds).ToList();
     }
 
-    private OperationResult? ValidateOrder(int userId, Order order)
+    private OperationResult? ValidateOrder(Order order)
     {
         if (order.Status == OrderStatus.Paid)
         {
             return new OperationResult(false, "The order has already been paid for.");
         }
-
-        if (order.UserId != userId)
-        {
-            return new OperationResult(false, "Access denied: You do not have permission to modify this order.");
-        }
-
         return null;
     }
 }
