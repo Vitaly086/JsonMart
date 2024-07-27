@@ -6,7 +6,6 @@ JsonMart - это веб-приложение для управления зак
 
 Для тестирования и изучения API проекта можно воспользоваться Swagger по следующему URL:
 
-[Swagger для тестирования API](http://vitvik-001-site1.htempurl.com/swagger/index.html)
 
 
 ## Основные Функции
